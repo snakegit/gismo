@@ -175,7 +175,7 @@ public:
     }
 
     /// Returns the degree of the B-spline
-    int degree(int i = 0) const 
+    short_t degree(short_t i = 0) const
     {
         GISMO_UNUSED(i);
         GISMO_ASSERT( i==0, "Requested knots of invalid direction "<< i );
@@ -297,7 +297,7 @@ public:
     }
 
     // Look at gsGeometry class for a description
-    void degreeElevate(int const i = 1, int const dir = -1);
+    void degreeElevate(short_t const i = 1, short_t const dir = -1);
 
     /// @brief Returns true iff the point p is contained (approximately) on
     /// the curve, with the given tolerance.
@@ -307,7 +307,7 @@ public:
             assert( p.cols()==1 );
             gsBSplineSolver<T> slv;
             std::vector<T> roots;
-            int dim = this->geoDim();
+            short_t dim = this->geoDim();
             gsMatrix<T> ev, tmp(1,1);
             int i(1);
 

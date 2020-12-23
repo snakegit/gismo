@@ -210,7 +210,7 @@ void gsMultiBasis<T>::uniformRefine_withTransfer(
     );
 
     // restrict to free dofs
-    combineTransferMatrices( localTransferMatrices, coarseMapper, fineMapper, transferMatrix );        
+    combineTransferMatrices( localTransferMatrices, coarseMapper, fineMapper, transferMatrix );
 
 }
 
@@ -249,15 +249,84 @@ void gsMultiBasis<T>::uniformCoarsen_withTransfer(
     );
 
     // restrict to free dofs
-    combineTransferMatrices( localTransferMatrices, coarseMapper, fineMapper, transferMatrix );        
+    combineTransferMatrices( localTransferMatrices, coarseMapper, fineMapper, transferMatrix );
 
 }
 
+template <typename T>
+typename gsBasis<T>::uPtr gsMultiBasis<T>::componentBasis_withIndices(
+        patchComponent pc,
+        const gsDofMapper& dm,
+        gsMatrix<index_t>& indices,
+        bool no_lower
+    ) const
+{
+    typename gsBasis<T>::uPtr result = m_bases[pc.patch()]->componentBasis_withIndices(pc, indices, no_lower);
+
+    const index_t sz = indices.rows();
+    index_t j = 0;
+    for (index_t i=0; i<sz; ++i)
+    {
+        const index_t loc = indices(i,0);
+        if (dm.is_free(loc, pc.patch()))
+        {
+            indices(j,0) = dm.index(loc, pc.patch());
+            ++j;
+        }
+    }
+    indices.conservativeResize(j,1);
+    return result;
+}
+
+template <typename T>
+std::vector<typename gsBasis<T>::uPtr> gsMultiBasis<T>::componentBasis_withIndices(
+        const std::vector<patchComponent>& pc,
+        const gsDofMapper& dm,
+        gsMatrix<index_t>& indices,
+        bool no_lower
+    ) const
+{
+    const index_t nrpc = pc.size();
+    std::vector<typename gsBasis<T>::uPtr> bases;
+    bases.reserve(nrpc);
+    std::vector< gsMatrix<index_t> > local_indices(nrpc);
+
+    index_t sz = 0;
+
+    for (index_t i=0; i<nrpc; ++i)
+    {
+        bases.push_back(
+            this->componentBasis_withIndices(pc[i], dm, local_indices[i], no_lower)
+        );
+        sz += local_indices[i].rows();
+    }
+
+    std::vector<index_t> global_indices;
+    global_indices.reserve(sz);
+
+    for (index_t i=0; i<nrpc; ++i)
+    {
+        const index_t nr_local_indices = local_indices[i].rows();
+        for (index_t j=0; j<nr_local_indices; ++j)
+            if ( i==0 || std::find(global_indices.begin(), global_indices.end(), local_indices[i](j,0) )
+                            == global_indices.end()
+            )
+                global_indices.push_back( local_indices[i](j,0) );
+    }
+
+    const index_t final_size = global_indices.size();
+    indices.resize(final_size,1);
+    for (index_t i=0; i<final_size; ++i)
+        indices(i,0) = global_indices[i];
+
+    return bases;
+}
+
 template<class T>
-int gsMultiBasis<T>::maxDegree(int k) const
+short_t gsMultiBasis<T>::maxDegree(short_t k) const
 {
     GISMO_ASSERT(m_bases.size(), "Empty multibasis.");
-    int result = m_bases[0]->degree(k);
+    short_t result = m_bases[0]->degree(k);
     for (size_t i = 0; i < m_bases.size(); ++i)
         if (m_bases[i]->degree(k) > result )
             result = m_bases[i]->degree(k);
@@ -265,30 +334,30 @@ int gsMultiBasis<T>::maxDegree(int k) const
 }
 
 template<class T>
-int gsMultiBasis<T>::maxCwiseDegree() const
+short_t gsMultiBasis<T>::maxCwiseDegree() const
 {
     GISMO_ASSERT(m_bases.size(), "Empty multibasis.");
-    int result = m_bases[0]->maxDegree();
+    short_t result = m_bases[0]->maxDegree();
     for (size_t i = 0; i < m_bases.size(); ++i)
         result = math::max(m_bases[i]->maxDegree(), result);
     return result;
 }
 
 template<class T>
-int gsMultiBasis<T>::minCwiseDegree() const
+short_t gsMultiBasis<T>::minCwiseDegree() const
 {
     GISMO_ASSERT(m_bases.size(), "Empty multibasis.");
-    int result = m_bases[0]->minDegree();
+    short_t result = m_bases[0]->minDegree();
     for (size_t i = 0; i < m_bases.size(); ++i)
         result = math::min(m_bases[i]->minDegree(), result);
     return result;
 }
 
 template<class T>
-int gsMultiBasis<T>::minDegree(int k) const
+short_t gsMultiBasis<T>::minDegree(short_t k) const
 {
     GISMO_ASSERT(m_bases.size(), "Empty multibasis.");
-    int result = m_bases[0]->degree(k);
+    short_t result = m_bases[0]->degree(k);
     for (size_t i = 0; i < m_bases.size(); ++i)
         if (m_bases[i]->degree(k) < result )
             result = m_bases[i]->degree(k);
@@ -341,12 +410,13 @@ template<class T>
 void gsMultiBasis<T>::matchInterface(const boundaryInterface & bi, gsDofMapper & mapper) const
 {
     // should work for all basis which have matchWith() implementeds
-    gsMatrix<unsigned> b1, b2;
+    gsMatrix<index_t> b1, b2;
     m_bases[bi.first().patch]->matchWith(bi, *m_bases[bi.second().patch],
                                          b1, b2);
 
     // Match the dofs on the interface
-    mapper.matchDofs(bi.first().patch, b1, bi.second().patch, b2 );
+    for (size_t i = 0; i!=mapper.componentsSize(); ++i)
+        mapper.matchDofs(bi.first().patch, b1, bi.second().patch, b2, i );
 }
 
 template<class T>
@@ -354,17 +424,17 @@ bool gsMultiBasis<T>::repairInterface( const boundaryInterface & bi )
 {
     bool changed = false;
 
-    std::vector<unsigned> refEltsFirst;
-    std::vector<unsigned> refEltsSecond;
+    std::vector<index_t> refEltsFirst;
+    std::vector<index_t> refEltsSecond;
 
     // Find the areas/elements that do not match...
     switch( this->dim() )
     {
     case 2:
-        changed = repairInterfaceFindElements<2>( bi, refEltsFirst, refEltsSecond );
+        changed = this->template repairInterfaceFindElements<2>( bi, refEltsFirst, refEltsSecond );
         break;
     case 3:
-        changed = repairInterfaceFindElements<3>( bi, refEltsFirst, refEltsSecond );
+        changed = this->template repairInterfaceFindElements<3>( bi, refEltsFirst, refEltsSecond );
         break;
     default:
         GISMO_ASSERT(false,"wrong dimension");
@@ -383,11 +453,11 @@ bool gsMultiBasis<T>::repairInterface( const boundaryInterface & bi )
 }
 
 template<class T>
-template<int d>
+template<short_t d>
 bool gsMultiBasis<T>::repairInterfaceFindElements(
         const boundaryInterface & bi,
-        std::vector<unsigned> & refEltsFirst,
-        std::vector<unsigned> & refEltsSecond )
+        std::vector<index_t> & refEltsFirst,
+        std::vector<index_t> & refEltsSecond )
 {
     GISMO_ASSERT( d == 2 || d == 3, "Dimension must be 2 or 3.");
 
@@ -396,7 +466,7 @@ bool gsMultiBasis<T>::repairInterfaceFindElements(
 
     // get direction and orientation maps
     const gsVector<bool> dirOrient = bi.dirOrientation();
-    const gsVector<int> dirMap= bi.dirMap();
+    const gsVector<index_t> dirMap= bi.dirMap();
 
     // get the bases of both sides as gsHTensorBasis
     const gsHTensorBasis<d,T> * bas0 = dynamic_cast< const gsHTensorBasis<d,T> * >( m_bases[ bi.first().patch ] );
@@ -404,12 +474,12 @@ bool gsMultiBasis<T>::repairInterfaceFindElements(
 
     GISMO_ASSERT( bas0 != 0 && bas1 != 0, "Cannot cast basis as needed.");
 
-    gsMatrix<unsigned> lo0;
-    gsMatrix<unsigned> up0;
-    gsVector<unsigned> level0;
-    gsMatrix<unsigned> lo1;
-    gsMatrix<unsigned> up1;
-    gsVector<unsigned> level1;
+    gsMatrix<index_t> lo0;
+    gsMatrix<index_t> up0;
+    gsVector<index_t> level0;
+    gsMatrix<index_t> lo1;
+    gsMatrix<index_t> up1;
+    gsVector<index_t> level1;
 
     unsigned idxExponent;
 
@@ -419,9 +489,9 @@ bool gsMultiBasis<T>::repairInterfaceFindElements(
     unsigned indexLevelDiff1 = indexLevelUse - bas1->tree().getIndexLevel();
 
     // get upper corners, but w.r.t. level "indexLevelUse"
-    gsVector<unsigned> upperCorn0 = bas0->tree().upperCorner();
-    gsVector<unsigned> upperCorn1 = bas1->tree().upperCorner();
-    for( unsigned i=0; i < d; i++)
+    gsVector<index_t> upperCorn0 = bas0->tree().upperCorner();
+    gsVector<index_t> upperCorn1 = bas1->tree().upperCorner();
+    for( short_t i=0; i < d; i++)
     {
         upperCorn0[i] = upperCorn0[i] << indexLevelDiff0;
         upperCorn1[i] = upperCorn1[i] << indexLevelDiff1;
@@ -438,15 +508,15 @@ bool gsMultiBasis<T>::repairInterfaceFindElements(
 
     // Compute the indices on the same level (indexLevelUse)
     idxExponent = ( indexLevelUse - bas0->tree().getMaxInsLevel());
-    for( index_t i=0; i < index_t( lo0.rows() ); i++)
-        for( unsigned j=0; j < d; j++)
+    for( index_t i=0; i < lo0.rows(); i++)
+        for( short_t j=0; j < d; j++)
         {
             lo0(i,j) = lo0(i,j) << idxExponent;
             up0(i,j) = up0(i,j) << idxExponent;
         }
     idxExponent = ( indexLevelUse - bas1->tree().getMaxInsLevel());
-    for( index_t i=0; i < index_t( lo1.rows() ); i++)
-        for( unsigned jj=0; jj < d; jj++)
+    for( index_t i=0; i < lo1.rows(); i++)
+        for( short_t jj=0; jj < d; jj++)
         {
             // Computation done via dirMap, because...
             unsigned j = dirMap[jj];
@@ -505,8 +575,8 @@ bool gsMultiBasis<T>::repairInterfaceFindElements(
     // If so, their overlap is a box of the merged
     // interface mesh.
     std::vector< std::vector<unsigned> > iU;
-    for( index_t i0 = 0; i0 < index_t( lo0.rows() ); i0++)
-        for( index_t i1 = 0; i1 < index_t( lo1.rows() ); i1++)
+    for( index_t i0 = 0; i0 < lo0.rows(); i0++)
+        for( index_t i1 = 0; i1 < lo1.rows(); i1++)
         {
             if(     lo0(i0,a0) < up1(i1,a1) &&
                     lo0(i0,b0) < up1(i1,b1) &&
@@ -625,9 +695,9 @@ bool gsMultiBasis<T>::repairInterface2d( const boundaryInterface & bi )
 
     GISMO_ASSERT( bas0 != 0 && bas1 != 0, "Cannot cast basis as needed.");
 
-    gsMatrix<unsigned> lo;
-    gsMatrix<unsigned> up;
-    gsVector<unsigned> level;
+    gsMatrix<index_t> lo;
+    gsMatrix<index_t> up;
+    gsVector<index_t> level;
 
     unsigned idxExponent;
 
@@ -668,11 +738,11 @@ bool gsMultiBasis<T>::repairInterface2d( const boundaryInterface & bi )
     // numbering on level "indexLevelUse"
 
     // get upper corners, but w.r.t. level "indexLevelUse"
-    gsVector<unsigned,2> upperCorn0 = bas0->tree().upperCorner();
+    gsVector<index_t,2> upperCorn0 = bas0->tree().upperCorner();
     upperCorn0[0] = upperCorn0[0] << indexLevelDiff0;
     upperCorn0[1] = upperCorn0[1] << indexLevelDiff0;
 
-    gsVector<unsigned,2> upperCorn1 = bas1->tree().upperCorner();
+    gsVector<index_t,2> upperCorn1 = bas1->tree().upperCorner();
     upperCorn1[0] = upperCorn1[0] << indexLevelDiff1;
     upperCorn1[1] = upperCorn1[1] << indexLevelDiff1;
 
@@ -681,7 +751,7 @@ bool gsMultiBasis<T>::repairInterface2d( const boundaryInterface & bi )
         // flip the knot indices
         for( index_t i=0; i < lo.rows(); i++)
         {
-            unsigned tmp = upperCorn1[dir1] - intfc1(i, 1);
+            const index_t tmp = upperCorn1[dir1] - intfc1(i, 1);
             intfc1(i,1)  = upperCorn1[dir1] - intfc1(i, 0);
             intfc1(i,0)  = tmp;
         }
@@ -731,8 +801,8 @@ bool gsMultiBasis<T>::repairInterface2d( const boundaryInterface & bi )
     // reparing the interface
     unsigned knot0;
     unsigned knot1 = 0;
-    std::vector<unsigned> refElts0;
-    std::vector<unsigned> refElts1;
+    std::vector<index_t> refElts0;
+    std::vector<index_t> refElts1;
 
     for( unsigned i=0; i < intfcU.size(); i++)
     {

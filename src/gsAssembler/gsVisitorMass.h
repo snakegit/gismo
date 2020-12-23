@@ -36,7 +36,7 @@ public:
      * \f[ (u, v) \f]  
      */
     gsVisitorMass(const gsPde<T> & pde)
-    { }
+    { GISMO_UNUSED(pde); }
 
     void initialize(const gsBasis<T> & basis,
                     const index_t ,
@@ -80,9 +80,9 @@ public:
             md.measures.asDiagonal() * basisData.transpose();
     }
 
-    inline void localToGlobal(const int patchIndex,
-                              const std::vector<gsMatrix<T> >    & ,
-                              gsSparseSystem<T>     & system)
+    inline void localToGlobal(const index_t                     patchIndex,
+                              const std::vector<gsMatrix<T> > & ,
+                              gsSparseSystem<T>               & system)
     {
         // Map patch-local DoFs to global DoFs
         system.mapColIndices(actives, patchIndex, actives);
@@ -96,8 +96,8 @@ public:
     void initialize(const gsBasis<T> & basis,
                            gsQuadRule<T> & rule)
     {
-        gsVector<index_t> numQuadNodes( basis.dim() );
-        for (int i = 0; i < basis.dim(); ++i)
+        gsVector<short_t> numQuadNodes( basis.dim() );
+        for (short_t i = 0; i < basis.dim(); ++i)
             numQuadNodes[i] = basis.degree(i) + 1;
         
         // Setup Quadrature
@@ -108,11 +108,11 @@ public:
     }
 
 
-    void localToGlobal(const gsDofMapper     & mapper,
-                       const gsMatrix<T>     & eliminatedDofs,
-                       const int               patchIndex,
-                       gsSparseMatrix<T>     & sysMatrix,
-                       gsMatrix<T>           & rhsMatrix )
+    void localToGlobal(const gsDofMapper & mapper,
+                       const gsMatrix<T> & eliminatedDofs,
+                       const index_t       patchIndex,
+                       gsSparseMatrix<T> & sysMatrix,
+                       gsMatrix<T>       & rhsMatrix )
     {
         mapper.localToGlobal(actives, patchIndex, actives);
 
@@ -140,7 +140,7 @@ protected:
 
     // Basis values
     gsMatrix<T>      basisData;
-    gsMatrix<unsigned> actives;
+    gsMatrix<index_t> actives;
 
     // Local matrix
     gsMatrix<T> localMat;

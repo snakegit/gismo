@@ -24,6 +24,17 @@ namespace gismo
 {
 
 template<class T>
+gsMultiPatch<T> gsMultiPatch<T>::coord(const index_t c) const
+{
+    gsMultiPatch<T> result;
+    for ( const_iterator it = m_patches.begin(); it != m_patches.end(); ++it )
+    {
+        result.addPatch( (*it)->coord(c) );
+    }
+    return result;
+}
+
+template<class T>
 gsMultiPatch<T>::gsMultiPatch(const gsGeometry<T> & geo )
     : BaseA( geo.parDim() )
 {
@@ -132,14 +143,14 @@ std::string gsMultiPatch<T>::detail() const
 }
 
 template<class T>
-int gsMultiPatch<T>::geoDim() const
+short_t gsMultiPatch<T>::geoDim() const
 {
     GISMO_ASSERT( m_patches.size() > 0 , "Empty multipatch object.");
     return m_patches[0]->geoDim();
 }
 
 template<class T>
-int gsMultiPatch<T>::coDim() const
+short_t gsMultiPatch<T>::coDim() const
 {
     GISMO_ASSERT( m_patches.size() > 0 , "Empty multipatch object.");
     return m_patches[0]->geoDim() - m_dim;
@@ -154,7 +165,7 @@ gsMultiPatch<T>::parameterRange(int i) const
 
 template<class T>
 gsBasis<T> &
-gsMultiPatch<T>::basis( std::size_t i ) const
+gsMultiPatch<T>::basis( size_t i ) const
 {
     GISMO_ASSERT( i < m_patches.size(), "Invalid patch index requested from gsMultiPatch" );
     return m_patches[i]->basis();
@@ -186,10 +197,10 @@ std::vector<gsBasis<T> *> gsMultiPatch<T>::basesCopy(bool NoRational) const
 }
 
 template<class T>
-void gsMultiPatch<T>::permute(const std::vector<int> & perm)
+void gsMultiPatch<T>::permute(const std::vector<short_t> & perm)
 {
     gsAsVector<gsGeometry<T>*> a (m_patches);
-    a = gsVector<>::Permutation(gsAsConstVector<int>(perm)) * a;
+    a = Eigen::PermutationMatrix<-1,-1,short_t>(gsAsConstVector<short_t>(perm)) * a;
 }
 
 template<class T>
@@ -215,7 +226,7 @@ inline void gsMultiPatch<T>::addPatch(const gsGeometry<T> & g)
 }
 
 template<class T>
-int gsMultiPatch<T>::findPatchIndex( gsGeometry<T>* g ) const
+size_t gsMultiPatch<T>::findPatchIndex( gsGeometry<T>* g ) const
 {
     const_iterator it
         = std::find( m_patches.begin(), m_patches.end(), g );
@@ -294,13 +305,13 @@ template<class T>
 gsMultiPatch<T> gsMultiPatch<T>::uniformSplit() const
 {
     int n = math::exp2(parDim());
-    std::vector<gsGeometry<T>* > result;
-    result.reserve(nPatches()*n);
+    std::vector<gsGeometry<T>*> result;
+    result.reserve(nPatches() * n);
 
-    for(index_t np = 0; np<nPatches();++np)
+    for (size_t np = 0; np < nPatches(); ++np)
     {
-        std::vector<gsGeometry<T>* > result_temp = m_patches[np]->uniformSplit();
-        result.insert(result.end(),result_temp.begin(),result_temp.end());
+        std::vector<gsGeometry<T>*> result_temp = m_patches[np]->uniformSplit();
+        result.insert(result.end(), result_temp.begin(), result_temp.end());
     }
     gsMultiPatch<T> mp(result);
     mp.computeTopology();
@@ -433,7 +444,7 @@ bool gsMultiPatch<T>::matchVerticesOnSide (
     const bool computeOrientation = !(start&(start-1)) && (start != 0); // true if start is a power of 2
     const bool setReference       = start==0;          // if we search for the first point then we set the reference
 
-    const int dim = cc1.rows();
+    const short_t dim = static_cast<short_t>(cc1.rows());
 
     index_t o_dir = 0, d_dir = 0;
 
@@ -496,7 +507,7 @@ template<class T>
 void gsMultiPatch<T>::closeGaps(T tol)
 {
     const T tol2 = tol*tol;
-    gsMatrix<unsigned> bdr1, bdr2; // indices of the boundary control points
+    gsMatrix<index_t> bdr1, bdr2; // indices of the boundary control points
 
     // Create a map which assigns to all meeting patch-local indices a
     // unique global id
@@ -602,8 +613,8 @@ void gsMultiPatch<T>::repairInterfaces()
         {
             changed = false;
 
-            std::vector<unsigned> refEltsFirst;
-            std::vector<unsigned> refEltsSecond;
+            std::vector<index_t> refEltsFirst;
+            std::vector<index_t> refEltsSecond;
 
             // For each interface, find the areas/elements that do not match...
             switch( this->dim() )
@@ -657,7 +668,7 @@ void gsMultiPatch<T>::locatePoints(const gsMatrix<T> & points,
     {
         pt = points.col(i);
 
-        for (std::size_t k = 0; k!= m_patches.size(); ++k)
+        for (size_t k = 0; k!= m_patches.size(); ++k)
         {
             pr = m_patches[k]->parameterRange();
             m_patches[k]->invertPoints(pt, tmp);
@@ -665,6 +676,37 @@ void gsMultiPatch<T>::locatePoints(const gsMatrix<T> & points,
                  && (tmp.array() <= pr.col(1).array()).all() )
             {
                 pids[i] = k;
+                preim.col(i) = tmp;
+                break;
+            }
+        }
+    }
+}
+
+template<class T>
+void gsMultiPatch<T>::locatePoints(const gsMatrix<T> & points, index_t pid1,
+                                   gsVector<index_t> & pid2, gsMatrix<T> & preim) const
+{
+    // Assumes points are found on pid1 and possibly on one more patch
+    pid2.resize(points.cols());
+    pid2.setConstant(-1); // -1 implies not in the domain
+    preim.resize(parDim(), points.cols());//uninitialized by default
+    gsMatrix<T> pt, pr, tmp;
+
+    for (index_t i = 0; i!=pid2.size(); ++i)
+    {
+        pt = points.col(i);
+
+        for (size_t k = 0; k!= m_patches.size(); ++k)
+        {
+            if (pid1==(index_t)k) continue; // skip pid1
+
+            pr = m_patches[k]->parameterRange();
+            m_patches[k]->invertPoints(pt, tmp);
+            if ( (tmp.array() >= pr.col(0).array()).all()
+                 && (tmp.array() <= pr.col(1).array()).all() )
+            {
+                pid2[i] = k;
                 preim.col(i) = tmp;
                 break;
             }
