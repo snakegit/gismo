@@ -3,7 +3,7 @@
     @brief Provides declaration of DomainIterator abstract interface.
 
     This file is part of the G+Smo library.
-    
+
     This Source Code Form is subject to the terms of the Mozilla Public
     License, v. 2.0. If a copy of the MPL was not distributed with this
     file, You can obtain one at http://mozilla.org/MPL/2.0/.
@@ -54,7 +54,7 @@ namespace gismo
 
      }
      \endverbatim
-     
+
      \ingroup Core
  *
  *
@@ -76,9 +76,9 @@ public:
 
     gsDomainIterator( ) : m_basis(NULL), m_isGood( true ) { }
 
-    /// \brief Constructor using a basis 
+    /// \brief Constructor using a basis
     gsDomainIterator( const gsBasis<T>& basisParam, const boxSide & s = boundary::none)
-        : center( gsVector<T>::Zero(basisParam.dim()) ), m_basis( &basisParam ), 
+        : center( gsVector<T>::Zero(basisParam.dim()) ), m_basis( &basisParam ),
           m_isGood( true ), m_side(s)
     { }
 
@@ -104,11 +104,15 @@ public:
     }
 
 public:
+
+    /// Returns the element id
+    size_t id() const   { return m_id; }
+
     /// Is the iterator still pointing to a valid element?
     bool good() const   { return m_isGood; }
 
     /// Return dimension of the elements
-    int dim() const   { return center.size(); }
+    short_t dim() const   { return center.size(); }
 
     /// Updates \a other with and adjacent element
     /// \todo upgrade to return adjacent range instead
@@ -158,12 +162,17 @@ public:
         GISMO_NO_IMPLEMENTATION
     }
 
+    virtual bool isBoundaryElement() const
+    {
+        GISMO_NO_IMPLEMENTATION
+    }
+
     /// Return the diagonal of the element
     T getCellSize() const
     {
         return (upperCorner() - lowerCorner()).norm();
     }
-    
+
     /// Return the length of the smallest edge of the element
     T getMinCellLength() const
     {
@@ -181,7 +190,7 @@ public:
     { return (upperCorner() - lowerCorner()).prod(); }
 
     /// Returns the number of elements.
-    virtual index_t numElements() const
+    virtual size_t numElements() const
     {
         //\todo Remove this implementation. Probably using a shallow
         //copy, "reset" and "next" would do this better.
@@ -191,7 +200,7 @@ public:
         // sometimes.
         typename gsBasis<T>::domainIter domIter = m_basis->makeDomainIterator(m_side);
 
-        index_t numEl = 0;
+        size_t numEl = 0;
         for (; domIter->good(); domIter->next(), numEl++){}
 
         return numEl;
@@ -214,6 +223,8 @@ protected:
     bool m_isGood;
 
     boxSide m_side;
+
+    size_t m_id;
 
 private:
     // disable copying

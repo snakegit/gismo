@@ -1,14 +1,8 @@
+# Submodule files
+submodules.txt
+
 # CLion user-specific files
-.idea/**/workspace.xml
-.idea/**/tasks.xml
-.idea/**/usage.statistics.xml
-.idea/**/misc.xml
-.idea/**/.name
-.idea/**/dictionaries
-.idea/**/shelf
-.idea/modules.xml
-.idea/*.iml
-.idea/modules
+.idea
 
 # Binary directories
 cmake-build-*/
@@ -19,3 +13,30 @@ build/
 
 # QtCreator user file
 CMakeLists.txt.user
+
+# Visual Studio
+/CMakeSettings.json*
+/.vs
+**/.vscode
+/build*
+.vscode/
+
+# CMake
+CMakeCache.txt
+CMakeFiles/
+/.cmake/
+
+# Patch Files
+*.patch
+*.rej
+
+# paraview result files
+*.vtp
+*.pvd
+
+
+#Mac OS
+**/.DS_Store
+
+# Dokumentierung — exclude compiled binaries, keep XMLs/source/docs
+Dokumentierung/**/*.exe

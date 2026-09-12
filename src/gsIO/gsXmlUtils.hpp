@@ -129,7 +129,9 @@ public:
             if (trimID>-1)
                 m->addFace(vert, getById< gsTrimSurface<T> >( toplevel, trimID ) );
             else if (trimID==-1 && nLoops == 1)
-                GISMO_ERROR("Case not handled");
+                m->addFace(vert[0]);
+            else if (trimID==0 && nLoops == 1)
+                GISMO_ERROR("Faces must have unequal 0 as id (last value: increase from 1 or use -1 for all)");  // otherwise SEGFAULT happens
             else if (trimID==-1)
             {
                 gsWarn<<"\nAutomatic creation of trimmed surfaces is only supported for a single loop\n";
@@ -419,7 +421,7 @@ public:
 
 
 /// Get a TensorNurbsBasis from XML data
-template<unsigned d, class T>
+template<short_t d, class T>
 class gsXml< gsTensorNurbsBasis<d,T> >
 {
 private:
@@ -466,7 +468,7 @@ public:
 };
 
 /// Get a Tensor Nurbs from XML data
-template<unsigned d, class T>
+template<short_t d, class T>
 class gsXml< gsTensorNurbs<d,T> >
 {
 private:
@@ -1029,15 +1031,36 @@ public:
         
         // Read boundary
         std::vector< patchSide > boundaries;
-        tmp = node->first_node("boundary");
-        if (tmp)
-            getBoundaries(tmp, ids, boundaries);
-        
+        for (gsXmlNode * child = node->first_node("boundary"); child;
+                child = child->next_sibling("boundary"))
+        {
+            std::vector< patchSide > tmp_boundaries;
+            if (child)
+            {
+                getBoundaries(child, ids, tmp_boundaries);
+                boundaries.insert( boundaries.end(), tmp_boundaries.begin(), tmp_boundaries.end() );
+            }
+        }
+        // Remove duplicates (keeps the first one)
+        std::sort(boundaries.begin(), boundaries.end());
+        boundaries.erase(std::unique(boundaries.begin(), boundaries.end()), boundaries.end());
+
         // Read interfaces
         std::vector< boundaryInterface > interfaces;
-        tmp = node->first_node("interfaces");
-        if (tmp)
-            getInterfaces(tmp, d, ids, interfaces);
+        for (gsXmlNode * child = node->first_node("interfaces"); child;
+                child = child->next_sibling("interfaces"))
+        {
+            std::vector< boundaryInterface > tmp_interfaces;
+            if (child)
+            {
+                getInterfaces(child, d, ids, tmp_interfaces);
+                interfaces.insert( interfaces.end(), tmp_interfaces.begin(), tmp_interfaces.end() );
+            }
+        }
+        // Remove duplicates (keeps the first one)
+        std::sort(interfaces.begin(), interfaces.end());
+        interfaces.erase(std::unique(interfaces.begin(), interfaces.end()), interfaces.end());
+
 
         obj = gsMultiPatch<T>(patches, boundaries, interfaces);        
     }
@@ -1067,6 +1090,9 @@ public:
         mp_node->append_node(tmp);
       
         appendBoxTopology(obj, mp_node, data);
+
+        if (obj.numBoxProperties()!=0)
+            gsWarn<<"Multi-patch object has box properties that are not written to XML\n";
 
         return mp_node;
     }
@@ -1330,7 +1356,7 @@ public:
 
         // Read the dimension
         GISMO_ASSERT( node->first_attribute("dim"), "xml reader: No dim found" ) ;
-        unsigned d = atoi( node->first_attribute("dim")->value() );
+        short_t d = atoi( node->first_attribute("dim")->value() );
 
         
         unsigned tDim = 0;
@@ -1343,13 +1369,13 @@ public:
         {
             gsXmlNode * tmp = node->first_node("rhs");
             gsFunctionExpr<T>  rhs_fnct;
-            getFunctionFromXml(tmp, rhs_fnct);
+            internal::gsXml<gsFunctionExpr<T> >::get_into(tmp, rhs_fnct);
             
             tmp = node->first_node("solution");
             if ( tmp )
             {
                 gsFunctionExpr<T> msol;
-                getFunctionFromXml(tmp, msol);
+                internal::gsXml<gsFunctionExpr<T> >::get_into(tmp, msol);
                 
                 return new gsPoissonPde<T>(rhs_fnct, d, msol );
             }

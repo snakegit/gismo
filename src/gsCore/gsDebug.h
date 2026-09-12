@@ -30,7 +30,7 @@
 //#include <errno.h>
 #endif
 
-//#ifdef GISMO_EXTRA_DEBUG
+//#ifdef GISMO_WITH_XDEBUG
 //  #include <misc/gsStackWalker.h>
 //#endif
 
@@ -62,10 +62,10 @@ namespace gismo {
 
     #define gsDebugVar(variable) gsDebug << (strrchr(__FILE__, '/') ?          \
                              strrchr(__FILE__, '/') + 1 : __FILE__) <<":"<<    \
-                              __LINE__<< ", "#variable": \n"<<(variable)<<"\n"
+    __LINE__<< ", "#variable": \n"<<(variable)<<std::endl
 #define gsDebugIf(cond,variable) if (cond) gsDebug <<"[ "#cond" ] -- "<<       \
               (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__) \
-               <<":"<<__LINE__<< ", "#variable": \n"<<(variable)<<"\n"
+               <<":"<<__LINE__<< ", "#variable": \n"<<(variable)<<std::endl
 #else
     #define gsDebug if (0) std::cout
     #define gsDebugVar(variable)
@@ -86,10 +86,10 @@ namespace gismo {
  *
  */
 #ifndef NDEBUG
-#   define GISMO_ASSERT(cond, message) do if(!(cond)) {std::stringstream _m_;\
-       _m_<<"GISMO_ASSERT `"<<#cond<<"` "<<message<<"\n"<<__FILE__<<", line "\
-        <<__LINE__<<" ("<<__FUNCTION__<<")";                                 \
-       throw std::logic_error(_m_.str()); } while(false)
+#   define GISMO_ASSERT(cond, message) do if(!(cond)) {std::cerr          \
+       <<"Assert `"<<#cond<<"` "<<message<<"\n"<<__FILE__<<", line "\
+       <<__LINE__<<" ("<<__FUNCTION__<<")"<<std::endl;                    \
+       throw std::logic_error("GISMO_ASSERT"); } while(false)
 #else
 #   define GISMO_ASSERT(condition, message)
 #endif
@@ -99,10 +99,10 @@ namespace gismo {
  *  GISMO_ASSERT but it is executed in release builds as well.
  *
  */
-#define GISMO_ENSURE(cond, message) do if(!(cond)) {std::stringstream _m_;   \
-    _m_<<"GISMO_ENSURE `"<<#cond<<"` "<<message<<"\n"<<__FILE__<<", line "   \
-     <<__LINE__<<" ("<< __FUNCTION__<< ")";                                  \
-    throw std::runtime_error(_m_.str());} while(false)
+#define GISMO_ENSURE(cond, message) do if(!(cond)) {std::cerr             \
+    <<"Ensure `"<<#cond<<"` "<<message<<"\n"<<__FILE__<<", line "   \
+    <<__LINE__<<" ("<< __FUNCTION__<< ")"<<std::endl;                     \
+    throw std::runtime_error("GISMO_ENSURE");} while(false)
 
 /**  
  *  Denote a variable as unused, used to silence warnings in release
@@ -115,9 +115,9 @@ namespace gismo {
  *  Runtime error message
  *
  */
-#define GISMO_ERROR(message) do {std::stringstream _m_; _m_<<"GISMO_ERROR "  \
-    <<message<<"\n"<<__FILE__<<", line " <<__LINE__<<" ("<<__FUNCTION__<<")";\
-    throw std::runtime_error(_m_.str());} while(false)
+#define GISMO_ERROR(message) do {std::cerr <<"Error " <<message<<"\n"\
+    <<__FILE__<<", line " <<__LINE__<<" ("<<__FUNCTION__<<")"<<std::endl;  \
+    throw std::runtime_error("GISMO_ERROR");} while(false)
 
 /**  
  *  Runtime "no implementation" error happens when the user calls a
@@ -126,10 +126,10 @@ namespace gismo {
  */
  
 // TO DO: for GCC __PRETTY_FUNC__ is better
-#define GISMO_NO_IMPLEMENTATION {std::stringstream _m_;                            \
-    _m_<<"Virtual member function `"<<__FUNCTION__<<"` has not been implemented\n" \
-     <<__FILE__<<", line "<<__LINE__<<"\n"<<typeid(*this).name();                  \
-    throw std::runtime_error(_m_.str());}
+#define GISMO_NO_IMPLEMENTATION {std::cerr                                       \
+     <<"Virtual member function `"<<__FUNCTION__<<"` has not been implemented\n" \
+     <<__FILE__<<", line "<<__LINE__<<"\n"<<typeid(*this).name()<<std::endl;     \
+    throw std::runtime_error("GISMO_NO_IMPLEMENTATION");}
 
 /*
 #ifdef _MSC_VER
@@ -240,7 +240,7 @@ static const int  gismo_set_abort_behavior = _set_abort_behavior(
 #pragma GCC diagnostic ignored "-Wunused-local-typedefs"
 #endif
 
-#if (__cplusplus < 201402L && __GNUC__==7)
+#if (__cplusplus < 201703L && __GNUC__>6)
 // mangled name will change in C++17 because the exception
 // specification is part of a function type [-Wnoexcept-type]
 #pragma GCC diagnostic ignored "-Wnoexcept-type"
@@ -264,7 +264,7 @@ static const int  gismo_set_abort_behavior = _set_abort_behavior(
  */
 #ifndef GISMO_NO_STATIC_ASSERT
 
-  #if defined(__GXX_EXPERIMENTAL_CXX0X__) || (defined(_MSC_VER) && (_MSC_VER >= 1600))
+  #if defined(__GXX_EXPERIMENTAL_CXX0X__) || _MSC_VER >= 1600
 
     // Native static_assert is available
     #define GISMO_STATIC_ASSERT(X,MSG) static_assert(X,#MSG);
@@ -305,7 +305,7 @@ static const int  gismo_set_abort_behavior = _set_abort_behavior(
 
 
 
-#ifdef GISMO_WARNINGS
+#ifdef GISMO_WITH_WARNINGS
     //#pragma message("G+Smo Warnings ON")
   #ifdef __GNUC__
     #define GISMO_DEPRECATED __attribute__((deprecated))

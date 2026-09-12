@@ -41,6 +41,10 @@ public:
     /// @brief Constructor
     gsVertex() : MeshElement(), gsVector3d<T>() { }
 
+    template<typename OtherDerived>
+    gsVertex(const gsEigen::MatrixBase<OtherDerived>& other) :
+    MeshElement(), gsVector3d<T>(other) { }
+
     /// @brief Constructor, take 3 scalars.
     /// \param x, y, z Coordinates of position in 3D space.
     gsVertex(scalar_t x, scalar_t y, scalar_t z = 0) :
@@ -70,7 +74,18 @@ public:
 
     virtual ~gsVertex() { };
 
-    // clone function
+
+    void setCoords(gsVector<T> const & coord)
+    {
+        this->gsVector3d<T>::operator=(coord);
+    }
+
+    gsVertex & operator=(const gsVertex & other)
+    {
+        this->gsVector3d<T>::operator=(other);
+        return *this;
+    }
+    
     //GISMO_CLONE_FUNCTION(gsVertex)
     /// @brief Clone Function (deep copy)
     uPtr clone() const { return uPtr(new gsVertex(*this)); }
@@ -188,17 +203,8 @@ bool operator == (gsVertex<T> const & lhs,gsVertex<T> const & rhs)
     return (lhs.x()==rhs.x())&&
            (lhs.y()==rhs.y())&&
            (lhs.z()==rhs.z());
-//    return lhs.Eigen::template Matrix<T,3,1>::operator==(rhs); /slower
+//    return lhs.gsEigen::template Matrix<T,3,1>::operator==(rhs); /slower
 }
-//void operator = (gsVertex<T> & lhs,gsVertex<T> const & rhs)
-//{
-//    lhs.coords=rhs.coords;
-//    lhs.nVertices=rhs.nVertices;
-//    lhs.numEdges=rhs.numEdges;
-//    lhs.sharp=rhs.sharp;
-//    lhs.faces=rhs.faces;
-//    return 0;
-//}
 
 template<class T>
 bool operator < (gsVertex<T> const & lhs,gsVertex<T> const & rhs)
@@ -225,47 +231,6 @@ bool operator > (gsVertex<T> const & lhs,gsVertex<T> const & rhs)
 }
 
 /**
- * Multiplicates RHS to LHS
- * @param lhs
- * @param rhs
- * @return
- */
-template<class T>
-T operator *(gsVertex<T> const & lhs,gsVertex<T> const & rhs)
-{
-//    return (lhs.x()*rhs.x()+
-//            lhs.y()*rhs.y()+
-//            lhs.z()*rhs.z());
-    return lhs.Eigen::template Matrix<T,3,1>::operator*(rhs);
-}
-
-/**
- * Adds -RHS to LHS
- * @param lhs
- * @param rhs
- * @return
- */
-template<class T>
-gsVertex<T> operator -(gsVertex<T> const & lhs,gsVertex<T> const & rhs)
-{
-    //return gsVertex<T>(lhs.x()-rhs.x(),lhs.y()-rhs.y(),lhs.z()-rhs.z());
-    return (gsVector3d<T>)lhs.Eigen::template Matrix<T,3,1>::operator-(rhs);
-}
-
-/**
- * Adds RHS to LHS
- * @param lhs
- * @param rhs
- * @return
- */
-template<class T>
-gsVertex<T> operator +(gsVertex<T> const & lhs,gsVertex<T> const & rhs)
-{
-    //return gsVertex<T>(lhs.x()+rhs.x(),lhs.y()+rhs.y(),lhs.z()+rhs.z());
-        return (gsVector3d<T>)lhs.Eigen::template Matrix<T,3,1>::operator+(rhs);
-}
-
-/**
  * Compares to gsVertex
  * @param lhs LHS gsVertex
  * @param rhs RHS gsVertex
@@ -274,7 +239,7 @@ gsVertex<T> operator +(gsVertex<T> const & lhs,gsVertex<T> const & rhs)
 template<class T>
 bool operator != (gsVertex<T> const & lhs, gsVertex<T> const & rhs)
 {
-    //return lhs.Eigen::template Matrix<T,3,1>::operator!=(rhs);
+    //return lhs.gsEigen::template Matrix<T,3,1>::operator!=(rhs);
     return !(lhs.x()== rhs.x()&& lhs.y()==rhs.y()&& lhs.z()==rhs.z());
 }
 

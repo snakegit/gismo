@@ -35,7 +35,7 @@ gsMatrix<T> * innerProduct( const gsBasis<T>& B1, const gsBasis<T>& B2)
     gsGaussRule<T> QuRule(nGauss); // Reference Quadrature rule
     gsMatrix<T> ngrid;          // tensor Gauss nodes
     gsVector<T> wgrid;          // tensor Gauss weights
-    gsMatrix<unsigned> act1, act2;
+    gsMatrix<index_t> act1, act2;
     gsMatrix<T>        ev1 , ev2;
 
     typename gsBasis<T>::domainIter domIt = B1.makeDomainIterator();
@@ -70,7 +70,7 @@ gsMatrix<T> * innerProduct1( const gsBasis<T>& B1, const gsBasis<T>& B2)
     gsGaussRule<T> QuRule(nGauss); // Reference Quadrature rule
     gsMatrix<T> ngrid;          // tensor Gauss nodes
     gsVector<T> wgrid;          // tensor Gauss weights
-    gsMatrix<unsigned> act1, act2;
+    gsMatrix<index_t> act1, act2;
     gsMatrix<T>        ev1 , ev2;
     
     typename gsBasis<T>::domainIter domIt = B1.makeDomainIterator();
@@ -106,7 +106,7 @@ gsMatrix<T> * innerProduct2( const gsBasis<T>& B1, const gsBasis<T>& B2)
     gsGaussRule<T> QuRule(nGauss); // Reference Quadrature rule
     gsMatrix<T> ngrid;          // tensor Gauss nodes
     gsVector<T> wgrid;          // tensor Gauss weights
-    gsMatrix<unsigned> act1, act2;
+    gsMatrix<index_t> act1, act2;
     gsMatrix<T>        ev1 , ev2;
     
     typename gsBasis<T>::domainIter domIt = B1.makeDomainIterator();
@@ -182,7 +182,7 @@ template <class T>
 T conditionedAngle(gsVector3d<T> vec1, gsVector3d<T> vec2, gsVector3d<T> normal)
 {
     T ag = conditionedAngle<T>(vec1,vec2);
-    T cag = ( normal.dot( vec1.cross( vec2 ) ) >= 0 ) ? ag : T(2*EIGEN_PI-ag);
+    T cag = ( normal.dot( vec1.cross( vec2 ) ) >= 0 ) ? ag : (T)(2*EIGEN_PI)-ag;
     return cag;
 }
 
@@ -404,8 +404,8 @@ gsBSpline<T> gsInterpolate(gsKnotVector<T> & kv,const gsMatrix<T> & preImage,
     gsMatrix<T> *Q = innerProduct2(bs, bs);
 
     // Exact constraints: point interpolation
-    int dimPI = 1; // dimension of space of preImage, TODO: put dimPI, dimI to template<dimPI,...
-    int dimI = 2;  // dimension of space of image
+    short_t dimPI = 1; // dimension of space of preImage, TODO: put dimPI, dimI to template<dimPI,...
+    short_t dimI = 2;  // dimension of space of image
     GISMO_UNUSED(dimPI);
     int nip = image.cols(); // number of interpolating points
     int nn=normal.cols(); // number of prescribed normals
@@ -432,17 +432,17 @@ gsBSpline<T> gsInterpolate(gsKnotVector<T> & kv,const gsMatrix<T> & preImage,
     gsMatrix<T> Ass(nss,nss);
     gsMatrix<T> bss(nss,1);
     Ass.setZero(); bss.setZero();
-    gsMatrix<T> Hess = w_reg*2*(*Q) + w_app*2*(NuApp.transpose())* NuApp;
+    gsMatrix<T> Hess = w_reg*(T)(2)*(*Q) + w_app*(T)(2)*(NuApp.transpose())* NuApp;
     //--- row 0
     Ass.block(0,0,ntcp,ntcp) = Hess;
     Ass.block(0,2*ntcp,ntcp,nip) = Nu.transpose();
     Ass.block(0,2*ntcp+2*nip,ntcp,nn) = AdN.transpose();
-    bss.block(0,0,ntcp,1) = w_app*2*NuApp.transpose()*X0.transpose();
+    bss.block(0,0,ntcp,1) = w_app*(T)(2)*NuApp.transpose()*X0.transpose();
     //--- row 1
     Ass.block(ntcp,ntcp,ntcp,ntcp) = Hess;
     Ass.block(ntcp,2*ntcp+nip,ntcp,nip) = Nu.transpose();
     Ass.block(ntcp,2*ntcp+2*nip,ntcp,nn) = BdN.transpose();
-    bss.block(ntcp,0,ntcp,1) = w_app*2*NuApp.transpose()*Y0.transpose();
+    bss.block(ntcp,0,ntcp,1) = w_app*(T)(2)*NuApp.transpose()*Y0.transpose();
     //--- row 2
     Ass.block(2*ntcp,0,nip,ntcp) = Nu;
     bss.block(2*ntcp,0,nip,1) = (image.row(0)).transpose();
@@ -628,7 +628,7 @@ typename gsTensorBSpline<2,T>::Ptr gsInterpolateSurface(
 
     // now solve the cps
     gsMatrix<T> coefA = wEdge*(AappEdge.transpose())*AappEdge + wInt*(AappInt.transpose())*AappInt + wNormal*(Anor.transpose())*Anor + wReg*Q;
-    gsMatrix<T> coefb = (-2)*wEdge*(AappEdge.transpose())*bappEdge + (-2)*wInt*(AappInt.transpose())*bappInt + (-2)*wNormal*(Anor.transpose())*bnor;
+    gsMatrix<T> coefb = (T)(-2)*wEdge*(AappEdge.transpose())*bappEdge + (T)(-2)*wInt*(AappInt.transpose())*bappInt + (T)(-2)*wNormal*(Anor.transpose())*bnor;
 
     gsMatrix<T> cp = criticalPointOfQuadratic(
         coefA,

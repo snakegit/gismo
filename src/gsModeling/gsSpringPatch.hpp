@@ -23,7 +23,7 @@ namespace gismo
 template <typename T>
 const gsGeometry<T> & gsSpringPatch<T>::compute()
 {
-    const int dim = m_boundary.dim();
+    const short_t dim = m_boundary.dim();
 
     delete m_result;
     m_result = NULL;
@@ -74,7 +74,7 @@ void gsSpringPatch<T>::compute_impl()
     const int sz  = resultBasis.size();
     gsDofMapper mapper(resultBasis);
     // boundary control point indices
-    gsMatrix<unsigned> bnd = resultBasis.allBoundary();
+    gsMatrix<index_t> bnd = resultBasis.allBoundary();
     mapper.markBoundary(0,bnd);
     mapper.finalize();
 
@@ -116,7 +116,9 @@ void gsSpringPatch<T>::compute_impl()
     A.makeCompressed();
 
     // Solve system
-    typename gsSparseSolver<T>::QR  solver(A);
+  // too slow to large-scale problem
+//    typename gsSparseSolver<T>::QR  solver(A);
+    typename gsSparseSolver<T>::LU  solver(A);
     gsMatrix<T> solution = solver.solve ( b );
 
     // Fill in interior coefficients

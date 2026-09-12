@@ -72,7 +72,7 @@ void gsBSpline<T>::merge( gsGeometry<T> * otherG )
     // merge coefficients
     int n= this->coefsSize();
     int skip = continuous ? 1 : 0;
-    this->m_coefs.conservativeResize( n + other->coefsSize() -skip, Eigen::NoChange ) ;
+    this->m_coefs.conservativeResize( n + other->coefsSize() -skip, gsEigen::NoChange ) ;
 
     this->m_coefs.block( n,0,other->coefsSize()-skip,other->geoDim() ) =
         other->m_coefs.block( 1,0,other->coefsSize()-skip,other->geoDim() ) ;
@@ -133,9 +133,9 @@ void gsBSpline<T>::findCorner(const gsMatrix<T> & v,
 template<class T>    
 void gsBSpline<T>::setOriginCorner(gsMatrix<T> const &v)
 {
-    if ((v - m_coefs.row(0)).squaredNorm() < 1e-3)
+    if ((v - m_coefs.row(0)).squaredNorm() < (T)(1e-3))
         return;
-    else if ((v - m_coefs.bottomRows(1)).squaredNorm() < 1e-3)
+    else if ((v - m_coefs.bottomRows(1)).squaredNorm() < (T)(1e-3))
         this->reverse();
     else
         gsWarn<<"Point "<< v <<" is not an endpoint of the curve.\n";
@@ -144,10 +144,10 @@ void gsBSpline<T>::setOriginCorner(gsMatrix<T> const &v)
 template<class T>    
 void gsBSpline<T>::setFurthestCorner(gsMatrix<T> const &v)
 {
-    if ((v - m_coefs.row(0)).squaredNorm() < 1e-3)
-        this->reverse();
-    else if ((v - m_coefs.bottomRows(1)).squaredNorm() < 1e-3)
+    if ((v - m_coefs.bottomRows(1)).squaredNorm() < (T)(1e-3))
         return;
+    else if ((v - m_coefs.row(0)).squaredNorm() < (T)(1e-3))
+        this->reverse();
     else
         gsWarn<<"Point "<< v <<" is not an endpoint of the curve.\n";
 }
@@ -163,7 +163,7 @@ void gsBSpline<T>::swapDirections(const unsigned i, const unsigned j)
 
 
 template<class T>
-void gsBSpline<T>::degreeElevate(int const i, int const dir)
+void gsBSpline<T>::degreeElevate(short_t const i, short_t const dir)
 {
     GISMO_UNUSED(dir);
     GISMO_ASSERT( (dir == -1) || (dir == 0),

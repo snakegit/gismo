@@ -75,7 +75,7 @@ public:
     {
         this->m_basis = new Basis(give(KV));
         m_coefs.swap(coefs);
-            
+
         if( periodic )
         {
             const index_t sz = this->basis().size();
@@ -97,8 +97,8 @@ public:
         }
         else // non-periodic
         {
-            if( this->m_coefs.rows() + KV.degree() + 1 != static_cast<int>( KV.size() ) )
-                gsWarn << "gsBSpline Warning: #Knots="<< KV.size()<< ", #coefs="<< this->m_coefs.rows() <<"\n";
+            if( this->m_coefs.rows() + KV.degree() + 1 != static_cast<int>( this->knots().size() ) )
+                gsWarn << "gsBSpline Warning: #Knots="<< this->knots().size()<< ", #coefs="<< this->m_coefs.rows() <<"\n";
         }
     }
     
@@ -153,10 +153,10 @@ public:
     }
     
     /// Returns the starting value of the domain of the basis
-    T domainStart() const { return this->basis().knots().first(); }
+    T domainStart() const { return *this->basis().knots().domainBegin(); }
     
     /// Returns the end value of the domain of the basis
-    T domainEnd() const { return this->basis().knots().last(); }
+    T domainEnd() const { return *this->basis().knots().domainEnd(); }
     
     /// Returns a reference to the knot vector
     KnotVectorType & knots(const int i = 0) 
@@ -175,7 +175,7 @@ public:
     }
 
     /// Returns the degree of the B-spline
-    int degree(int i = 0) const 
+    short_t degree(short_t i = 0) const
     {
         GISMO_UNUSED(i);
         GISMO_ASSERT( i==0, "Requested knots of invalid direction "<< i );
@@ -297,7 +297,7 @@ public:
     }
 
     // Look at gsGeometry class for a description
-    void degreeElevate(int const i = 1, int const dir = -1);
+    void degreeElevate(short_t const i = 1, short_t const dir = -1);
 
     /// @brief Returns true iff the point p is contained (approximately) on
     /// the curve, with the given tolerance.
@@ -307,7 +307,7 @@ public:
             assert( p.cols()==1 );
             gsBSplineSolver<T> slv;
             std::vector<T> roots;
-            int dim = this->geoDim();
+            short_t dim = this->geoDim();
             gsMatrix<T> ev, tmp(1,1);
             int i(1);
 
@@ -390,6 +390,16 @@ protected:
     // check function: check the coefficient number, degree, knot vector ...
 
 }; // class gsBSpline
+
+
+#ifdef GISMO_WITH_PYBIND11
+
+  /**
+   * @brief Initializes the Python wrapper for the class: gsBSpline
+   */
+  void pybind11_init_gsBSpline(pybind11::module &m);
+
+#endif // GISMO_WITH_PYBIND11
 
 
 /*

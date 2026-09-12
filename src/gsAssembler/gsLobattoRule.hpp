@@ -23,7 +23,7 @@ template<class T> void
 gsLobattoRule<T>::setNodes( gsVector<index_t> const & numNodes,
                             unsigned digits)
 {
-    const int d = numNodes.rows();
+    const short_t d = static_cast<short_t>(numNodes.rows());
     static const T epsilon = std::pow(10.0, -REAL_DIG * 0.85);
     // Get base rule nodes and weights
     std::vector<gsVector<T> > nodes(d);
@@ -31,17 +31,18 @@ gsLobattoRule<T>::setNodes( gsVector<index_t> const & numNodes,
 
     if (digits == 0)
     {
-        for (int i = 0; i < d; ++i)
+        for (short_t i = 0; i < d; ++i)
         {
             if (!lookupReference(numNodes[i], nodes[i], weights[i]))
-                computeReference(numNodes[i], nodes[i], weights[i], REAL_DIG);
+                computeReference(numNodes[i], nodes[i], weights[i],
+                                 0==REAL_DIG?2:REAL_DIG);
             if (1!=numNodes[i])
                 nodes[i].last() -= epsilon; //interval may be half-open
         }
     }
     else
     {
-        for (int i = 0; i < d; ++i)
+        for (short_t i = 0; i < d; ++i)
         {
             computeReference(numNodes[i], nodes[i], weights[i], digits);
             if (1!=numNodes[i])
@@ -65,7 +66,7 @@ gsLobattoRule<T>::computeReference(index_t n,       // Number of points
     x.resize(n);
     w.resize(n);
 
-    int i, j;
+    index_t i, j;
     T test;
     const T tolerance = math::pow(T(0.1), static_cast<int>(digits));
 
@@ -78,7 +79,7 @@ gsLobattoRule<T>::computeReference(index_t n,       // Number of points
 
     // Initial estimate ( Chebyshev-Gauss-Lobatto nodes)
     for ( i = 0; i < n; i++ )
-        x[i] = math::cos ( EIGEN_PI * ( i ) / ( n - 1 ) );
+      x[i] = math::cos ( (T)(EIGEN_PI) * (T)( i ) / (T)( n - 1 ) );
 
     gsVector<T> xold(n);
     gsVector<T> p(n*n);
@@ -123,6 +124,14 @@ gsLobattoRule<T>::lookupReference(index_t n,   // Number of points
                                   gsVector<T> & x, // Quadrature points
                                   gsVector<T> & w) // Quadrature weights
 {
+    if ( REAL_DIG >= 28 )
+    {
+        // The generated points and weights are only accurate up to ~30 decimal digits (leaving some wiggle room inside the conditional).
+        // If the precision of the number format aliased by real_t is higher than that the lookup is refused.
+        // More precise weights must be computed on-the-fly.
+        return false;
+    }
+
     x.resize(n);
     w.resize(n);
 
@@ -269,7 +278,7 @@ gsLobattoRule<T>::lookupReference(index_t n,   // Number of points
     default:
     {
         //gsWarn << "  Illegal value of N = " << n << "\n";
-        gsWarn << "Precomputed Lobatto rule (1,..,20) not found.\n";
+        gsWarn << "Precomputed Lobatto rule (1,..,20) not found for N="<<n<<".\n";
         return false;
     }
 

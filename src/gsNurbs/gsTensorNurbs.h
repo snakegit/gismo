@@ -36,7 +36,7 @@ namespace gismo
     \ingroup Nurbs
 */
 
-template<unsigned d, class T>
+template<short_t d, class T>
 class gsTensorNurbs : public gsGeoTraits<d,T>::GeometryBase
 {
 
@@ -56,11 +56,11 @@ public:
     typedef gsTensorNurbsBasis<d,T>   Basis;
 
     /// Associated boundary geometry type
-    typedef typename gsBSplineTraits<d-1,T>::RatGeometry BoundaryGeometryType;
-    //typedef gsTensorNurbs<d-1,T> BoundaryGeometryType;
+    typedef typename gsBSplineTraits<static_cast<short_t>(d-1),T>::RatGeometry BoundaryGeometryType;
+    //typedef gsTensorNurbs<static_cast<short_t>(d-1),T> BoundaryGeometryType;
 
     /// Associated boundary basis type
-    typedef typename gsBSplineTraits<d-1,T>::RatBasis BoundaryBasisType;
+    typedef typename gsBSplineTraits<static_cast<short_t>(d-1),T>::RatBasis BoundaryBasisType;
 
     /// Shared pointer for gsTensorNurbs
     typedef memory::shared_ptr< gsTensorNurbs > Ptr;
@@ -229,30 +229,34 @@ public:
         GISMO_ASSERT( i>0, "multiplicity must be at least 1");
         GISMO_ASSERT( dir >= 0 && static_cast<unsigned>(dir) < d,
                       "Invalid basis component "<< dir <<" requested for degree elevation" );
-        
-        const index_t n = this->m_coefs.cols();
+
+        // Combine control points and weights to n+1 dimensional "control points"
+        gsMatrix<T> projectiveCoefs = basis().projectiveCoefs(m_coefs, weights());
+
+        // Dimension of physical space + 1 for the weights
+        const index_t n = projectiveCoefs.cols();
+
         gsTensorBSplineBasis<d,T> & tbs = this->basis().source();
-
         gsVector<index_t,d> sz;
-        tbs.size_cwise(sz);
+        tbs.size_cwise(sz); // Size of basis per (parametric) direction
         
-        swapTensorDirection(0, dir, sz, m_coefs  );
-        std::swap(sz[0],sz[dir]);
-        swapTensorDirection(0, dir, sz, weights());
-        const index_t nc = sz.template tail<d-1>().prod();
-        m_coefs  .resize( sz[0], n * nc );
-        weights().resize( sz[0], nc     );
-        
-        gsBoehm(tbs.knots(dir), weights(), knot, i, false);
-        gsBoehm(tbs.knots(dir), m_coefs  , knot, i, true );
-        sz[0] = m_coefs.rows();
+        swapTensorDirection(0, dir, sz, projectiveCoefs  );
 
+        const index_t nc = sz.template tail<static_cast<short_t>(d-1)>().prod();
+        projectiveCoefs.resize( sz[0], n * nc );
+        
+        // Insert knot and update projective control points
+        gsBoehm(tbs.knots(dir), projectiveCoefs  , knot, i, true );
+        sz[0] = projectiveCoefs.rows();
+
+        // New number of coefficients
         const index_t ncoef = sz.prod();
-        m_coefs  .resize(ncoef, n );
-        weights().resize(ncoef, 1 );
-        swapTensorDirection(0, dir, sz, m_coefs  );
-        std::swap(sz[0],sz[dir]);
-        swapTensorDirection(0, dir, sz, weights());
+        projectiveCoefs.resize(ncoef, n );
+
+        swapTensorDirection(0, dir, sz, projectiveCoefs  );
+
+        // Unpack projective control points and update the coefs and weights of the original NURBS
+        basis().setFromProjectiveCoefs(projectiveCoefs, m_coefs, weights() );
     }
 
     /// Access to i-th weight
@@ -265,7 +269,7 @@ public:
     gsMatrix<T> & weights() { return this->basis().weights(); }
     
     /// Returns the degree of the basis wrt direction i 
-    unsigned degree(unsigned i) const 
+    short_t degree(unsigned i) const
     { return this->basis().source().component(i).degree(); }
 
 /// Toggle orientation wrt coordinate k
@@ -308,7 +312,7 @@ public:
         GISMO_ASSERT(dir_fixed>=0 && static_cast<unsigned>(dir_fixed)<d,"cannot fix a dir greater than dim or smaller than 0");
         // construct the d-1 basis
         boxSide side(dir_fixed,0);
-        //typename gsTensorNurbsBasis<d-1,T>::uPtr tbasis = this->basis().boundaryBasis(side);
+        //typename gsTensorNurbsBasis<static_cast<short_t>(d-1),T>::uPtr tbasis = this->basis().boundaryBasis(side);
         typename BoundaryBasisType::uPtr tbasis = this->basis().boundaryBasis(side);
 
         if(d==1)
@@ -316,7 +320,7 @@ public:
             gsMatrix<T> val(1,1),point;
             val(0,0)=par;
             this->eval_into(val,point);
-            //result = gsTensorNurbs<d-1, T>(*tbasis, point );
+            //result = gsTensorNurbs<static_cast<short_t>(d-1), T>(*tbasis, point );
             result = BoundaryGeometryType(*tbasis, point );
         }
         else
@@ -355,7 +359,7 @@ public:
             }
 
             // construct the object
-            //result = gsTensorBSpline<d-1,T>(*tbasis, give(coefs) );
+            //result = gsTensorBSpline<static_cast<short_t>(d-1),T>(*tbasis, give(coefs) );
             //result = BoundaryGeometry(*tbasis, give(coefs) );
             result = BoundaryGeometryType (*tbasis, coefs );
         }
@@ -369,7 +373,80 @@ public:
         this->basis().swapDirections(i,j);
     }
 
+    /// Splits the geometry either two parts in direction \a dir, or if \a dir = -1
+    /// in 2^d parts, by calling splitAt() for each direction.
+    /// The function automatically searches for the midpoint the corresponding knot vector.
+    std::vector<gsGeometry<T>*> uniformSplit(index_t dir = -1) const
+    {
+        // We use the simple fact that a NURBS function in R^d is the central probjection
+        // of a spline function in R^{d+1} into R^d.
+        //
+        // Create a B-spline in R^{d+1} and split it
+        Basis& basis = static_cast<Basis&>(*m_basis); // Basis is here gsTensorNurbsBasis
+        std::vector<gsGeometry<T>*> result
+            = gsTensorBSpline<d,T>(basis.source(), basis.projectiveCoefs(m_coefs)).uniformSplit(dir);
+        // Turn the B-splines in R^{d+1} back into NURBS in R^d
+        for ( typename std::vector<gsGeometry<T>*>::iterator it = result.begin();
+            it != result.end(); ++it )
+        {
+            gsTensorBSpline<d,T>* spline = static_cast<gsTensorBSpline<d,T>*>(*it);
+            gsTensorNurbsBasis<d,T>* nurbsBasis = new gsTensorNurbsBasis<d,T>(spline->basis().clone().release());
+            gsTensorNurbs<d,T>* nurbs = new gsTensorNurbs<d,T>;
+            nurbs->m_basis = nurbsBasis;
+            gsTensorNurbsBasis<d,T>::setFromProjectiveCoefs(
+                spline->coefs(),
+                nurbs->m_coefs,
+                nurbsBasis->weights()
+            );
+            delete *it;
+            *it = nurbs;
+        }
+        return result;
+    }
 
+
+    /// Splits the geometry into two pieces (\a left, \a right) along direction \a dir at \a xi. The splitting
+    /// is performed by increasing the multiplicity of knot \a xi to p+1, or if \a xi does not exist as knot,
+    /// it is inserted p+1 times.
+    void splitAt(index_t dir,T xi, gsTensorNurbs<d,T>& left,  gsTensorNurbs<d,T>& right) const
+    {
+        // We use the simple fact that a NURBS function in R^d is the central projection
+        // of a spline function in R^{d+1} into R^d.
+        //
+        // Create a B-spline in R^{d+1} and split it
+        Basis& basis = static_cast<Basis&>(*m_basis); // Basis is here gsTensorNurbsBasis
+        gsTensorBSpline<d,T> leftBS, rightBS;
+        gsTensorBSpline<d,T> tmp(basis.source(), basis.projectiveCoefs(m_coefs)); 
+        
+        // Use gsTensorBSpline::splitAt() with the projective coefs.
+        tmp.splitAt(dir, xi, leftBS, rightBS);
+
+
+        // Turn the B-splines in R^{d+1} back into NURBS in R^d
+        // gsTensorBSpline<d,T>* spline = static_cast<gsTensorBSpline<d,T>*>(*it);
+        
+        gsTensorNurbsBasis<d,T>* leftBasis = new gsTensorNurbsBasis<d,T>(leftBS.basis().clone().release());
+        gsTensorNurbs<d,T>* leftNurbs = new gsTensorNurbs<d,T>;
+        leftNurbs->m_basis = leftBasis;
+
+        gsTensorNurbsBasis<d,T>::setFromProjectiveCoefs(
+            leftBS.coefs(),
+            leftNurbs->m_coefs,
+            leftBasis->weights());
+        
+        gsTensorNurbsBasis<d,T>* rightBasis = new gsTensorNurbsBasis<d,T>(rightBS.basis().clone().release());
+        gsTensorNurbs<d,T>* rightNurbs = new gsTensorNurbs<d,T>;
+        rightNurbs->m_basis = rightBasis;
+
+        gsTensorNurbsBasis<d,T>::setFromProjectiveCoefs(
+            rightBS.coefs(),
+            rightNurbs->m_coefs,
+            rightBasis->weights());
+
+
+        left  = gsTensorNurbs<d,T>( *leftBasis,  leftNurbs->coefs() );
+        right = gsTensorNurbs<d,T>( *rightBasis, rightNurbs->coefs());
+    }
 
 protected:
     // todo: check function: check the coefficient number, degree, knot vector ...

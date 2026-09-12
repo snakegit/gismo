@@ -55,7 +55,7 @@ gsTrimSurface<T>::gsTrimSurface(gsMatrix<T> const & corner, int patchDeg1, int p
         {
             for (unsigned int xi=0; xi < 2; xi++)
             {
-                tcp(i,xi) = DomCor(ic,xi) + T(i) / (T(ntcp)-1) * (DomCor(ic+1,xi)-DomCor(ic,xi));
+                tcp(i,xi) = DomCor(ic,xi) + (T)(i) / ((T)(ntcp)-(T)(1)) * (DomCor(ic+1,xi)-DomCor(ic,xi));
             }
         }
         tloop->insertCurve( new gsBSpline<T>(0,1,0,curveDeg, give(tcp)) );
@@ -203,8 +203,8 @@ gsBSpline<T> gsTrimSurface<T>::cuttingCurve(int const & sourceID,int const & tar
     T w_app = 0;
 
     // Exact constraints: point interpolation
-    int dimPI = 1; // dimension of space of preImage
-    int dimI = 2;  // dimension of space of image
+    short_t dimPI = 1; // dimension of space of preImage
+    short_t dimI = 2;  // dimension of space of image
     int nip=2; // number of interpolating points
     int nn=2; // number of prescribed normals
     gsMatrix<T> image(dimI,nip);
@@ -239,7 +239,7 @@ memory::unique_ptr<gsMesh<T> > gsTrimSurface<T>::toMesh(int npoints) const
     gsMatrix<T> tmp;
 
     // For all vertices of the msh, push forward the value by m_surface
-    for (std::size_t i = 0; i!= msh->numVertices(); ++i)
+    for (size_t i = 0; i!= msh->numVertices(); ++i)
     {
         m_surface->eval_into( msh->vertex(i).topRows(2), tmp );
         msh->vertex(i).topRows(m_surface->geoDim() ) = tmp;
@@ -253,7 +253,7 @@ gsMatrix<T> gsTrimSurface<T>::UnitTangentCoefs_next(int const & sourceID,gsMatri
 {
     gsMatrix<T> tangent_side2 = TangentCoefs_next(sourceID);
     gsMatrix<T> spatialTangent = tangent_side2(0)*corJacobian.col(0)+tangent_side2(1)*corJacobian.col(1);
-    tangent_side2 = tangent_side2*(1/spatialTangent.norm());
+    tangent_side2 = tangent_side2*((T)(1)/spatialTangent.norm());
 
     return tangent_side2;
 }
@@ -263,7 +263,7 @@ gsMatrix<T> gsTrimSurface<T>::UnitTangentCoefs_prev(int const & sourceID,gsMatri
 {
     gsMatrix<T> tangent_side1 = TangentCoefs_prev(sourceID);
     gsMatrix<T> spatialTangent = tangent_side1(0)*corJacobian.col(0)+tangent_side1(1)*corJacobian.col(1);
-    tangent_side1 = tangent_side1*(1/spatialTangent.norm());
+    tangent_side1 = tangent_side1*((T)(1)/spatialTangent.norm());
 
     return tangent_side1;
 }
@@ -528,7 +528,7 @@ T gsTrimSurface<T>::findParameter(const gsCurve<T>& curve,
     // do the binary search
     while (eps < math::abs(arcUpp - arcLow))
     {
-        midParam = lowParam + (uppParam - lowParam) / 2;
+        midParam = lowParam + (uppParam - lowParam) / (T)(2);
 
         // "arc" distance
         T dst = arcLength(curve, midParam, uppParam);
@@ -549,7 +549,7 @@ T gsTrimSurface<T>::findParameter(const gsCurve<T>& curve,
         }
     }
 
-    midParam = lowParam + (uppParam - lowParam) / 2;
+    midParam = lowParam + (uppParam - lowParam) / (T)(2);
 
     return midParam;
 }

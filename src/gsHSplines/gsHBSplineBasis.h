@@ -31,7 +31,7 @@ namespace gismo
      * \ingroup HSplines
     */ 
     
-template<unsigned d, class T>
+template<short_t d, class T>
 class gsHBSplineBasis : public gsHTensorBasis<d,T>
 {
 public:
@@ -43,7 +43,7 @@ public:
     typedef typename gsHTensorBasis<d,T>::tensorBasis tensorBasis;
 
     typedef typename 
-    util::conditional<d==1, gsConstantBasis<T>, gsHBSplineBasis<d-1,T>
+    util::conditional<d==1, gsConstantBasis<T>, gsHBSplineBasis<static_cast<short_t>(d-1),T>
                       >::type BoundaryBasisType;
 
     /// @brief Shared pointer for gsHBSplineBasis
@@ -57,14 +57,14 @@ public:
     gsHBSplineBasis() { }
 
     /// @brief Constructor out of a tensor BSpline Basis
-    gsHBSplineBasis(gsBasis<T> const&  tbasis)
-        : gsHTensorBasis<d,T>(tbasis) 
+    gsHBSplineBasis(gsBasis<T> const&  tbasis, bool manualLevels=false )
+        : gsHTensorBasis<d,T>(tbasis, manualLevels) 
     {
         // initialize(); // is done in the base constructor
     }
     
     gsHBSplineBasis( gsTensorBSplineBasis<d,T> const&  tbasis,
-                     std::vector<unsigned> & boxes)
+                     std::vector<index_t> & boxes)
         : gsHTensorBasis<d,T>(tbasis, boxes) 
     {
         // initialize(); // is done in the base constructor
@@ -90,7 +90,7 @@ public:
     /// @brief Gives back the basis at a slice in \a dir_fixed at \a par
     BoundaryBasisType * basisSlice(index_t dir_fixed,T par ) const;
 
-    int domainDim() const { return d; }
+    short_t domainDim() const { return d; }
     
     void eval_into(const gsMatrix<T> & u, gsMatrix<T>& result) const;
 
@@ -98,11 +98,11 @@ public:
 
     void deriv2_into(const gsMatrix<T> & u, gsMatrix<T>& result) const;
     
-    void evalSingle_into  (unsigned i, const gsMatrix<T> & u, gsMatrix<T>& result) const;
+    void evalSingle_into(index_t i, const gsMatrix<T> & u, gsMatrix<T>& result) const;
     
-    void derivSingle_into (unsigned i, const gsMatrix<T> & u, gsMatrix<T>& result) const;
+    void derivSingle_into(index_t i, const gsMatrix<T> & u, gsMatrix<T>& result) const;
     
-    void deriv2Single_into(unsigned i, const gsMatrix<T> & u, gsMatrix<T>& result) const;
+    void deriv2Single_into(index_t i, const gsMatrix<T> & u, gsMatrix<T>& result) const;
 
     GISMO_CLONE_FUNCTION(gsHBSplineBasis)
 
@@ -119,10 +119,10 @@ private:
     /// internal bspline representations
     void initialize();
 
-    gsSparseMatrix<T> coarsening(const std::vector<gsSortedVector<unsigned> >& old, const std::vector<gsSortedVector<unsigned> >& n, const gsSparseMatrix<T,RowMajor> & transfer) const;
-    gsSparseMatrix<T> coarsening_direct( const std::vector<gsSortedVector<unsigned> >& old, const std::vector<gsSortedVector<unsigned> >& n, const std::vector<gsSparseMatrix<T,RowMajor> >& transfer) const;
+    gsSparseMatrix<T> coarsening(const std::vector<gsSortedVector<index_t> >& old, const std::vector<gsSortedVector<index_t> >& n, const gsSparseMatrix<T,RowMajor> & transfer) const;
+    gsSparseMatrix<T> coarsening_direct( const std::vector<gsSortedVector<index_t> >& old, const std::vector<gsSortedVector<index_t> >& n, const std::vector<gsSparseMatrix<T,RowMajor> >& transfer) const;
 
-    gsSparseMatrix<T> coarsening_direct2( const std::vector<gsSortedVector<unsigned> >& old, const std::vector<gsSortedVector<unsigned> >& n, const std::vector<gsSparseMatrix<T,RowMajor> >& transfer) const;
+    gsSparseMatrix<T> coarsening_direct2( const std::vector<gsSortedVector<index_t> >& old, const std::vector<gsSortedVector<index_t> >& n, const std::vector<gsSparseMatrix<T,RowMajor> >& transfer) const;
 
     using gsHTensorBasis<d,T>::m_bases;
     using gsHTensorBasis<d,T>::m_xmatrix;
@@ -131,6 +131,16 @@ private:
     
 }; // class gsHBSplineBasis
 
+#ifdef GISMO_WITH_PYBIND11
+
+  /**
+   * @brief Initializes the Python wrapper for the class: gsHBSplineBasis
+   */
+  void pybind11_init_gsHBSplineBasis2(pybind11::module &m);
+  void pybind11_init_gsHBSplineBasis3(pybind11::module &m);
+  void pybind11_init_gsHBSplineBasis4(pybind11::module &m);
+
+#endif // GISMO_WITH_PYBIND11
 
 } // namespace gismo
 

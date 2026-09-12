@@ -1,12 +1,12 @@
+
 #####################################################################
-## CMakeLists.txt
+## CMakeLists.txt --- root
 ## This file is part of the G+Smo library.
 ##
 ## Author: Angelos Mantzaflaris
-## Copyright (C) 2012-2018 - RICAM-Linz.
 ######################################################################
 
-cmake_minimum_required(VERSION 2.8.8)
+cmake_minimum_required(VERSION 2.8.12)
 
 if(POLICY CMP0048)# CMake 3.0
 cmake_policy(SET CMP0011 NEW)
@@ -26,11 +26,24 @@ if(POLICY CMP0063)# CMake 3.3
 cmake_policy(SET CMP0063 NEW)
 endif()
 
+if(POLICY CMP0074)# CMake 3.12
+cmake_policy(SET CMP0074 NEW)
+endif()
+
 if(POLICY CMP0077)# CMake 3.13
 cmake_policy(SET CMP0077 NEW)
 endif()
 
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
+if(NOT CMAKE_RUNTIME_OUTPUT_DIRECTORY)
+  set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
+endif()
+if(NOT CMAKE_ARCHIVE_OUTPUT_DIRECTORY)
+  set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
+endif()
+if(NOT CMAKE_LIBRARY_OUTPUT_DIRECTORY)
+  set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
+endif()
 
 if(NOT CMAKE_BUILD_TYPE)
    # Set default build type to Release
@@ -42,11 +55,26 @@ if(NOT CMAKE_BUILD_TYPE)
    endif()
 endif()
 
-set(gismo_VERSION_MAJOR "0")
-set(gismo_VERSION_MINOR "8")
-set(gismo_VERSION_PATCH "5")
+set(gismo_VERSION_MAJOR 23) #year
+set(gismo_VERSION_MINOR 12) #month
+set(gismo_VERSION_PATCH 0 ) #patch
 set(gismo_VERSION
   "${gismo_VERSION_MAJOR}.${gismo_VERSION_MINOR}.${gismo_VERSION_PATCH}" CACHE INTERNAL "gismo version number")
+set(GISMO_VERSION "${gismo_VERSION}" CACHE INTERNAL "G+Smo version number")
+
+if(CMAKE_QUIET)
+  function(message)
+    list(GET ARGV 0 MessageType)
+    if(MessageType STREQUAL FATAL_ERROR OR
+	MessageType STREQUAL SEND_ERROR OR
+	MessageType STREQUAL WARNING OR
+	MessageType STREQUAL AUTHOR_WARNING)
+      list(REMOVE_AT ARGV 0)
+      _message(${MessageType} "${ARGV}")
+    endif()
+  endfunction()
+  unset(CMAKE_QUIET CACHE)
+endif()
 
 if(POLICY CMP0048)# CMake 3.0
   project(gismo LANGUAGES C CXX  VERSION ${gismo_VERSION})
@@ -59,12 +87,17 @@ if (GISMO_BUILD_PCH)
 endif()
 
 if(NOT GISMO_INSOURCE_BUILD AND "${PROJECT_SOURCE_DIR}" STREQUAL "${PROJECT_BINARY_DIR}")
-   message(FATAL_ERROR "In-source G+Smo builds are not permitted. \n How to fix this:\n 1. Type \nmake cleancmake\nto remove garbage CMake files. \n\n 2. Please make a separate folder for building, otherwise typing \nmake\nthat will create a ./build folder and will compile in that folder. ")
+   message(FATAL_ERROR "In-source G+Smo builds are not permitted. \nHow to fix this:\n1. Type \nmake cleancmake\nto remove garbage CMake files.\n2. Please make a separate folder for building, otherwise typing \nmake\nthat will create a ./build folder and will compile in that folder. ")
 endif()
 
 ## #################################################################
 ## Cmake Inclusions and configuration options
 ## #################################################################
+
+#Fix for Eigen directory
+if (NOT EXISTS "${PROJECT_SOURCE_DIR}/external/Eigen")
+  execute_process(COMMAND ${CMAKE_COMMAND} -E create_symlink ${PROJECT_SOURCE_DIR}/external/gsEigen ${PROJECT_SOURCE_DIR}/external/Eigen)
+endif()
 
 set(CMAKE_INSTALL_MESSAGE NEVER)
 
@@ -96,6 +129,16 @@ include( gsOptions )
 include(CTest)
 # Note: clean cache to reset to OFF
 set(BUILD_TESTING "Enable testing" ${GISMO_BUILD_UNITTESTS})
+file(WRITE "${PROJECT_BINARY_DIR}/CTestCustom.cmake" "set(CTEST_SOURCE_DIRECTORY ${PROJECT_SOURCE_DIR})\nset(CTEST_BINARY_DIRECTORY   ${PROJECT_BINARY_DIR})\nset(CTEST_SITE         ${SITE})\nset(CTEST_BUILD_NAME   ${BUILDNAME})\n")
+
+include(submodules.txt)
+set(GISMO_OPTIONAL ${SUBMODULES_TXT} ${GISMO_OPTIONAL} CACHE STRING "List of optional G+Smo modules" FORCE)
+if (CMAKE_VERSION VERSION_GREATER 3.11.5)
+  list(TRANSFORM GISMO_OPTIONAL STRIP)
+endif()
+set(GISMO_OPTIONAL ${GISMO_OPTIONAL}
+  CACHE STRING "List of optional G+Smo modules" FORCE)
+#message(STATUS "Submodules ${GISMO_OPTIONAL}")
 
 ## #################################################################
 ## Preprocessor definitions
@@ -112,19 +155,13 @@ include(gsJITConfigXml)
 gsJITConfigXml(${CMAKE_CURRENT_SOURCE_DIR}/cmake/jit.xml.in
   ${CMAKE_BINARY_DIR}/config/jit.xml)
 
-# Configure
-configure_file ("${PROJECT_SOURCE_DIR}/src/gsCore/gsConfig.h.in"
-                "${PROJECT_BINARY_DIR}/gsCore/gsConfig.h" )
-configure_file ("${PROJECT_SOURCE_DIR}/src/gsCore/gsExport.h.in"
-                "${PROJECT_BINARY_DIR}/gsCore/gsExport.h" )
-
-include_directories(${PROJECT_BINARY_DIR})
-
 ## #################################################################
 ## Collect headers and sources
 ## #################################################################
 
 # Clean previously set variables in the cache
+unset(GISMO_EXTRA_INSTANCE       CACHE)
+unset(GISMO_EXTERNALS            CACHE)
 unset(${PROJECT_NAME}_HEADERS    CACHE)
 unset(${PROJECT_NAME}_SOURCES    CACHE)
 unset(${PROJECT_NAME}_EXTENSIONS CACHE)
@@ -132,16 +169,13 @@ unset(${PROJECT_NAME}_MODULES    CACHE)
 unset(${PROJECT_NAME}_optionals  CACHE)
 unset(${PROJECT_NAME}_LINKER     CACHE)
 unset(gismo_TMPL_HEADERS         CACHE)
+unset(gismo_UNITTESTS            CACHE)
 set(${PROJECT_NAME}_optionals ""
     CACHE INTERNAL "${PROJECT_NAME} list of optionals")
 
-set (GISMO_INCLUDE_DIRS "${PROJECT_SOURCE_DIR}/src"
-           "${PROJECT_SOURCE_DIR}/external"
-      "${PROJECT_SOURCE_DIR}/extensions"
+set (GISMO_INCLUDE_DIRS "${PROJECT_SOURCE_DIR}/src" "${PROJECT_SOURCE_DIR}/external"
+     "${PROJECT_BINARY_DIR}" "${PROJECT_SOURCE_DIR}/optional"
      CACHE INTERNAL "${PROJECT_NAME} include directories" )
-
-#first time
-include_directories(${GISMO_INCLUDE_DIRS})
 
 # Offer the user the choice of overriding the installation directories
 set(LIB_INSTALL_DIR     lib     CACHE STRING "Installation directory for libraries")
@@ -152,88 +186,46 @@ set(INCLUDE_INSTALL_DIR include CACHE STRING "Installation directory for header 
 ## Extensions
 ## #################################################################
 
+#functions to fetch(download) head revision from git or Subversion
 include(gsFetch)
+
+if (EIGEN_USE_MKL_ALL)
+  # See http://eigen.tuxfamily.org/dox/TopicUsingIntelMKL.html
+  find_package(MKL REQUIRED)
+  set (GISMO_INCLUDE_DIRS ${GISMO_INCLUDE_DIRS} ${MKL_INCLUDE_DIR} ${MKL_INCLUDE}
+    CACHE INTERNAL "${PROJECT_NAME} include directories")
+endif()
+
+if (";${GISMO_OPTIONAL};" MATCHES ";gsUniversal;")
+  gismo_fetch_module(gsUniversal)
+endif()
+
+if (";${GISMO_OPTIONAL};" MATCHES ";gsCoDiPack;")
+  gismo_fetch_module(gsCoDiPack)
+endif()
+
+#first time
+include_directories(${GISMO_INCLUDE_DIRS})
 
 # Add externals directory
 add_subdirectory(external)
 
-if(GISMO_WITH_CODIPACK)
-  add_subdirectory(extensions/gsCoDiPack)
-  set (GISMO_INCLUDE_DIRS ${GISMO_INCLUDE_DIRS} ${CODIPACK_INCLUDE_DIR}
-  CACHE INTERNAL "${PROJECT_NAME} include directories")
-  #include_directories(${CODIPACK_INCLUDE_DIR})
-endif(GISMO_WITH_CODIPACK)
-
-if(GISMO_WITH_FDBB)
-  add_subdirectory(extensions/gsFdbb)
-  set (GISMO_INCLUDE_DIRS ${GISMO_INCLUDE_DIRS} ${FDBB_INCLUDE_DIR}
-  CACHE INTERNAL "${PROJECT_NAME} include directories")
-  #include_directories(${FDBB_INCLUDE_DIR})
-endif(GISMO_WITH_FDBB)
-
-if(GISMO_WITH_IPOPT)
-  add_subdirectory(extensions/gsIpopt)
-  #set (GISMO_INCLUDE_DIRS ${GISMO_INCLUDE_DIRS} ${IPOPT_INCLUDE_DIR}
-  #CACHE INTERNAL "${PROJECT_NAME} include directories")
-  #include_directories(${IPOPT_INCLUDE_DIR})
-endif(GISMO_WITH_IPOPT)
-
-#if(GISMO_WITH_METIS)
-#include_directories(${METIS_INCLUDE_DIR})
-#set(gismo_LINKER ${gismo_LINKER} ${METIS_LIBRARIES}
-#    CACHE INTERNAL "${PROJECT_NAME} extra linker objects")
-#endif(GISMO_WITH_METIS)
-
 if(GISMO_WITH_MPI)
   find_package(MPI REQUIRED)
   set (GISMO_INCLUDE_DIRS ${GISMO_INCLUDE_DIRS} ${MPI_INCLUDE_PATH}
-  CACHE INTERNAL "${PROJECT_NAME} include directories")
+  CACHE INTERNAL "${PROJECT_NAME} include directories)" FORCE)
   set(gismo_LINKER ${gismo_LINKER} ${MPI_CXX_LIBRARIES}
-  CACHE INTERNAL "${PROJECT_NAME} extra linker objects")
-  #include_directories(SYSTEM ${MPI_INCLUDE_PATH})
+  CACHE INTERNAL "${PROJECT_NAME} extra linker objects" FORCE)
 endif(GISMO_WITH_MPI)
 
-if(GISMO_WITH_MPFR OR GISMO_WITH_MPQ)
-  find_package(GMP QUIET)
-  find_package(MPFR QUIET)
-
-  if (NOT GMP_FOUND OR NOT MPFR_FOUND)
-    add_subdirectory(extensions/gsMultiPrecision)
-  endif()
-
-  set (GISMO_INCLUDE_DIRS ${GISMO_INCLUDE_DIRS} ${GMP_INCLUDE_DIR}
-  CACHE INTERNAL "${PROJECT_NAME} include directories")
-  set(gismo_LINKER ${gismo_LINKER} ${GMP_LIBRARY} ${GMPXX_LIBRARY}
-  CACHE INTERNAL "${PROJECT_NAME} extra linker objects")
-  #include_directories(SYSTEM ${GMP_INCLUDE_DIR})
-
-  set (GISMO_INCLUDE_DIRS ${GISMO_INCLUDE_DIRS} ${MPFR_INCLUDE_DIR}
-  CACHE INTERNAL "${PROJECT_NAME} include directories")
-  set(gismo_LINKER ${gismo_LINKER} ${MPFR_LIBRARY}
-  CACHE INTERNAL "${PROJECT_NAME} extra linker objects")
-  #include_directories(SYSTEM ${MPFR_INCLUDE_DIR})
+if(${GISMO_COEFF_TYPE} STREQUAL "mpq_class")
+  include(external/gsGmp.cmake)
 endif()
 
-if(GISMO_WITH_ONURBS)
-  add_subdirectory(extensions/gsOpennurbs)
-endif(GISMO_WITH_ONURBS)
-
-if(GISMO_WITH_PARDISO)
-endif(GISMO_WITH_PARDISO)
-
-if(GISMO_WITH_PASTIX)
-endif(GISMO_WITH_PASTIX)
-
-if(GISMO_WITH_PSOLID)
-  add_subdirectory(extensions/gsParasolid)
-endif(GISMO_WITH_PSOLID)
-
-if(GISMO_WITH_SPECTRA)
-  add_subdirectory(extensions/gsSpectra)
-  set (GISMO_INCLUDE_DIRS ${GISMO_INCLUDE_DIRS} ${SPECTRA_INCLUDE_DIR}
-  CACHE INTERNAL "${PROJECT_NAME} include directories")
-  #include_directories(${SPECTRA_INCLUDE_DIR})
-endif(GISMO_WITH_SPECTRA)
+if(${GISMO_COEFF_TYPE} STREQUAL "mpfr::mpreal")
+  include(external/gsGmp.cmake)
+  include(external/gsMpfr.cmake)
+endif()
 
 if(GISMO_WITH_SUPERLU)
   find_package(SuperLU REQUIRED)
@@ -262,38 +254,6 @@ if(GISMO_WITH_UMFPACK)
   #include_directories(SYSTEM ${UMFPACK_INCLUDES})
 endif(GISMO_WITH_UMFPACK)
 
-if(GISMO_WITH_UNUM)
-  add_subdirectory(extensions/gsUnum)
-  set (GISMO_INCLUDE_DIRS ${GISMO_INCLUDE_DIRS} ${UNUM_INCLUDE_DIR}
-  CACHE INTERNAL "${PROJECT_NAME} include directories")
-  #include_directories(${UNUM_INCLUDE_DIR})
-endif(GISMO_WITH_UNUM)
-
-if(GISMO_WITH_TRILINOS)
-  add_subdirectory(extensions/gsTrilinos)
-  set (GISMO_INCLUDE_DIRS ${GISMO_INCLUDE_DIRS} ${TRILINOS_INCLUDE_DIR}
-  CACHE INTERNAL "${PROJECT_NAME} include directories")
-  #include_directories(${TRILINOS_INCLUDE_DIR})
-endif(GISMO_WITH_TRILINOS)
-
-if(GISMO_WITH_OCC)
-  add_subdirectory(extensions/gsOpenCascade)
-  set (GISMO_INCLUDE_DIRS ${GISMO_INCLUDE_DIRS} ${OCC_INCLUDE_DIR}
-  CACHE INTERNAL "${PROJECT_NAME} include directories")
-  #include_directories(${OCC_INCLUDE_DIR})
-endif(GISMO_WITH_OCC)
-
-if(GISMO_WITH_SMESH)
-  include(external/surface_mesh.cmake)
-  set (GISMO_INCLUDE_DIRS ${GISMO_INCLUDE_DIRS} ${SMESH_INCLUDE_DIRS}
-  CACHE INTERNAL "${PROJECT_NAME} include directories")
-  #include_directories(${SMESH_INCLUDE_DIR})
-endif()
-
-## #################################################################
-## Build G+Smo library instantized for GISMO_COEFF_TYPE number type
-## #################################################################
-
 #second time
 include_directories(${GISMO_INCLUDE_DIRS})
 
@@ -301,14 +261,64 @@ include_directories(${GISMO_INCLUDE_DIRS})
 #get_property(EXTERNAL_INCLUDE_DIRS GLOBAL PROPERTY EXTERNAL_INCLUDE_DIRS)
 #include_directories(SYSTEM ${PROJECT_SOURCE_DIR}/external)
 
+## #################################################################
+## G+Smo sources
+## #################################################################
+
 # Add main sources directory
 add_subdirectory(src)
 
-if(GISMO_BUILD_LIB)
-  if (GISMO_EXTRA_DEBUG)
-    set(gismo_SOURCES ${gismo_SOURCES} ${PROJECT_SOURCE_DIR}/src/misc/gsStackWalker.cpp)
-  endif()
+## #################################################################
+## Submodules
+## #################################################################
+
+option(GISMO_UNSUPPORTED "Enable unsupported module" OFF)
+if(GISMO_UNSUPPORTED OR GISMO_MOTOR)
+  gismo_fetch_module(unsupported)
+  set (GISMO_INCLUDE_DIRS ${GISMO_INCLUDE_DIRS} ${GISMO_DEV_INCLUDE_DIRS}
+    CACHE INTERNAL "${PROJECT_NAME} include directories")
 endif()
+
+option(GISMO_MOTOR "Enable motor module" OFF)
+if(GISMO_MOTOR)
+  #gismo_fetch_module(motor)
+  set(GISMO_OPTIONAL ${GISMO_OPTIONAL} "motor"
+    CACHE INTERNAL "List of optional G+Smo modules" FORCE)
+endif()
+
+if (CMAKE_VERSION VERSION_GREATER 3.11.5)
+  list(TRANSFORM GISMO_OPTIONAL STRIP)
+endif()
+list(REMOVE_DUPLICATES GISMO_OPTIONAL)
+list(SORT GISMO_OPTIONAL)
+set(GISMO_OPTIONAL ${GISMO_OPTIONAL}
+  CACHE STRING "List of optional G+Smo modules" FORCE)
+foreach(gssm ${GISMO_OPTIONAL})
+  string(STRIP ${gssm} SUBMODULE)
+  #message("Fetch ${SUBMODULE}")
+  gismo_fetch_module(${SUBMODULE})
+  set(CONFIGEXT_H "${CONFIGEXT_H}#define ${SUBMODULE}_ENABLED\n")
+endforeach()
+foreach(gssm ${GISMO_EXTERNALS})
+  string(STRIP ${gssm} EXTMOD)
+  #message("Fetch ext: ${EXTMOD}")
+  set(CONFIGEXT_H "${CONFIGEXT_H}#define ${EXTMOD}_ENABLED\n")
+endforeach()
+file(WRITE ${gismo_BINARY_DIR}/gsCore/gsConfigExt.txt "${CONFIGEXT_H}")
+execute_process( COMMAND ${CMAKE_COMMAND} -E compare_files gsConfigExt.txt gsConfigExt.h
+  RESULT_VARIABLE comp_res
+  WORKING_DIRECTORY ${gismo_BINARY_DIR}/gsCore)
+if(NOT comp_res EQUAL 0)
+  file(WRITE ${gismo_BINARY_DIR}/gsCore/gsConfigExt.h "${CONFIGEXT_H}")
+endif()
+
+message("  GISMO_OPTIONAL        ${GISMO_OPTIONAL}")
+set(GISMO_OPTIONAL ${GISMO_OPTIONAL}
+  CACHE STRING "List of optional G+Smo modules" FORCE)
+
+## #################################################################
+## Shared and static library
+## #################################################################
 
 include(gsLibrary)
 
@@ -316,7 +326,11 @@ include(gsLibrary)
 ## Documentation
 ## #################################################################
 
-add_subdirectory(doc/snippets EXCLUDE_FROM_ALL)
+if(GISMO_BUILD_UNITTESTS OR NOSNIPPETS)
+  add_subdirectory(doc/snippets EXCLUDE_FROM_ALL)
+else()
+  add_subdirectory(doc/snippets)
+endif()
 add_subdirectory(doc)
 
 ## #################################################################
@@ -325,25 +339,41 @@ add_subdirectory(doc)
 
 add_custom_target(plugins)
 
-if(GISMO_BUILD_AXL)
+if(GISMO_PLUGIN_AXL)
   add_subdirectory(plugins/gsAxel)
-endif(GISMO_BUILD_AXL)
+endif(GISMO_PLUGIN_AXL)
 
 if(GISMO_BUILD_MEX)
   add_subdirectory(plugins/gsMex)
 endif(GISMO_BUILD_MEX)
 
-if(GISMO_BUILD_PVIEW)
-  add_subdirectory(plugins/gsParaview)
-endif(GISMO_BUILD_PVIEW)
+#if(GISMO_PLUGIN_PVIEW)
+#  add_subdirectory(plugins/gsParaview)
+#endif(GISMO_PLUGIN_PVIEW)
 
-if(GISMO_BUILD_RHINOPLUGINS)
+if(GISMO_PLUGIN_RHINO)
   add_subdirectory(plugins/RhinoTHBSplines)
-endif(GISMO_BUILD_RHINOPLUGINS)
+endif(GISMO_PLUGIN_RHINO)
+
+## #################################################################
+## Unittests
+## #################################################################
+
+if(GISMO_BUILD_UNITTESTS)
+  add_subdirectory(unittests)
+else()
+  add_custom_target(unittests COMMAND "" COMMENT "Set CMake argument GISMO_BUILD_UNITTESTS=ON to enable unittests")
+endif(GISMO_BUILD_UNITTESTS)
 
 ## #################################################################
 ## Install
 ## #################################################################
+
+# Configure
+configure_file ("${PROJECT_SOURCE_DIR}/src/gsCore/gsConfig.h.in"
+                "${PROJECT_BINARY_DIR}/gsCore/gsConfig.h" )
+configure_file ("${PROJECT_SOURCE_DIR}/src/gsCore/gsExport.h.in"
+                "${PROJECT_BINARY_DIR}/gsCore/gsExport.h" )
 
 include(gsInstall)
 
@@ -361,41 +391,11 @@ else()
 endif(GISMO_BUILD_EXAMPLES)
 
 ## #################################################################
-## Unittests
+## Misc
 ## #################################################################
-
-if(GISMO_BUILD_UNITTESTS)
-  add_subdirectory(unittests)
-else()
-  add_custom_target(unittests COMMAND "" COMMENT "Set CMake argument GISMO_BUILD_UNITTESTS=ON to enable unittests")
-endif(GISMO_BUILD_UNITTESTS)
-
-add_subdirectory(optional)
-
-if (NOT gismo_optionals STREQUAL "")
-  string (REPLACE ";" ", " gismo_optionals "${gismo_optionals}")
-  message(STATUS "Optional compile list: ${gismo_optionals}")
-endif()
-
-## #################################################################
-## Submodules
-## #################################################################
-
-if(GISMO_UNSUPPORTED OR GISMO_MOTOR)
-  gismo_fetch_module(unsupported)
-endif()
-
-if(GISMO_MOTOR)
-  gismo_fetch_module(motor)
-endif()
-
-if(GISMO_ELASTICITY)
-  gismo_fetch_module(gsElasticity)
-endif()
-
-if(GISMO_EXASTENCILS)
-  gismo_fetch_module(gsExaStencils)
-endif()
 
 unset(GISMO_UNAME CACHE)
 unset(GISMO_PASS CACHE)
+unset(RESTORE_SUBMODULES CACHE)
+
+#message("GISMO_INCLUDE_DIRS ${GISMO_INCLUDE_DIRS}")

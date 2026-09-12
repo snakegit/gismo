@@ -12,8 +12,7 @@
 
 #include "src/Core/util/DisableStupidWarnings.h"
 
-//#include <mkl_pardiso.h>
-#include <gsPardiso.h> // Using G+Smo header file
+// #include <mkl_pardiso.h> // G+Smo
 
 /** \ingroup Support_modules
   * \defgroup PardisoSupport_Module PardisoSupport module

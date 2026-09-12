@@ -50,10 +50,16 @@ gsMatrix<T> gsFunctionSet<T>::support() const
     return gsMatrix<T>();
 }
 
+template <class T>
+gsMatrix<T> gsFunctionSet<T>::support(index_t i) const
+{
+    GISMO_NO_IMPLEMENTATION
+}
+
 // actives
 
 template <typename T>
-void gsFunctionSet<T>::active_into (const gsMatrix<T> &, gsMatrix<unsigned> &) const
+void gsFunctionSet<T>::active_into (const gsMatrix<T> &, gsMatrix<index_t> &) const
 {
     GISMO_NO_IMPLEMENTATION
     // Single function 0 globally active:
@@ -64,7 +70,10 @@ void gsFunctionSet<T>::active_into (const gsMatrix<T> &, gsMatrix<unsigned> &) c
 
 template <typename T>
 void gsFunctionSet<T>::eval_into (const gsMatrix<T> &, gsMatrix<T> &) const
-{GISMO_NO_IMPLEMENTATION}
+{
+    gsWarn << "Is piece(.) needed/implemented ?\n";
+    GISMO_NO_IMPLEMENTATION
+}
 
 template <typename T>
 void gsFunctionSet<T>::deriv_into (const gsMatrix<T> &, gsMatrix<T> &) const
@@ -98,6 +107,15 @@ void gsFunctionSet<T>::evalAllDers_into(const gsMatrix<T> & u, const int n,
         GISMO_ERROR("evalAllDers implemented for order up to 2<"<<n ); //<< " for "<<*this);
         break;
     }
+}
+
+template <class T>
+std::vector<gsMatrix<T> >
+gsFunctionSet<T>::evalAllDers(const gsMatrix<T>& u, int n) const
+{
+    std::vector<gsMatrix<T> > result;
+    this->evalAllDers_into( u, n, result );
+    return result;
 }
 
 template <class T>
@@ -163,7 +181,6 @@ void gsFunctionSet<T>::compute(const gsMatrix<T> & in,
     const unsigned flags = out.flags;
 
     out.dim = this->dimensions();
-    //gsDebugVar(&out);
 
     const int md = out.maxDeriv();
     if (md != -1)
